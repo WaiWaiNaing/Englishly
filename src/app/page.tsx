@@ -158,7 +158,7 @@ export default function Home() {
             <h2 className="text-sm font-medium text-neutral-500">
               Why it changed
             </h2>
-            <p className="whitespace-pre-wrap text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-300">
               {result.explanation}
             </p>
           </div>
@@ -181,7 +181,7 @@ export default function Home() {
                 </button>
               </div>
               <p className="whitespace-pre-wrap text-sm">{r.output}</p>
-              <p className="whitespace-pre-wrap text-xs text-neutral-500">
+              <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-300">
                 {r.explanation}
               </p>
             </div>

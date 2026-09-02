@@ -18,6 +18,7 @@ export default function Home() {
   const [tone, setTone] = useState<Tone>("professional");
   const [contextType, setContextType] = useState<ContextType>("slack");
   const [compareAll, setCompareAll] = useState(false);
+  const [selfCritique, setSelfCritique] = useState(false);
   const [result, setResult] = useState<RewriteResult | null>(null);
   const [compareResults, setCompareResults] = useState<ToneResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,6 +42,7 @@ export default function Home() {
         body: JSON.stringify({
           input,
           contextType,
+          selfCritique,
           ...(compareAll ? { compareAll: true } : { tone }),
         }),
       });
@@ -128,6 +130,15 @@ export default function Home() {
               onChange={(e) => setCompareAll(e.target.checked)}
             />
             Compare all tones
+          </label>
+
+          <label className="flex items-center gap-2 pb-1.5 text-sm text-neutral-500" title="Runs a second pass where the AI reviews its own draft — slower, uses more of your daily quota">
+            <input
+              type="checkbox"
+              checked={selfCritique}
+              onChange={(e) => setSelfCritique(e.target.checked)}
+            />
+            Self-critique
           </label>
         </div>
 

@@ -22,6 +22,7 @@ export async function POST(request: Request) {
 
   const input = typeof body?.input === "string" ? body.input.trim() : "";
   const compareAll = body?.compareAll === true;
+  const selfCritique = body?.selfCritique === true;
   const tone: Tone = VALID_TONES.includes(body?.tone) ? body.tone : "professional";
   const contextType = VALID_CONTEXTS.includes(body?.contextType)
     ? body.contextType
@@ -42,7 +43,10 @@ export async function POST(request: Request) {
   let generated;
   try {
     generated = await Promise.all(
-      tonesToGenerate.map(async (t) => ({ tone: t, ...(await getLLM().rewrite(input, t)) })),
+      tonesToGenerate.map(async (t) => ({
+        tone: t,
+        ...(await getLLM().rewrite(input, t, { selfCritique })),
+      })),
     );
   } catch (error) {
     const { error: message, status } = quotaAwareError(error);

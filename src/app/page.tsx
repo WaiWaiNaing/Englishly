@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TONES, CONTEXTS, type Tone, type ContextType } from "@/lib/constants";
 
@@ -24,6 +24,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedTone, setCopiedTone] = useState<Tone | "single" | null>(null);
+  const [slowHint, setSlowHint] = useState(false);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setSlowHint(true), 5000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +41,7 @@ export default function Home() {
     setResult(null);
     setCompareResults(null);
     setCopiedTone(null);
+    setSlowHint(false);
 
     try {
       const res = await fetch("/api/rewrite", {
@@ -153,6 +161,13 @@ export default function Home() {
               : "Rewriting…"
             : "Rewrite"}
         </button>
+
+        {slowHint && (
+          <p className="text-xs text-neutral-500">
+            Still working — response time on the Gemini free tier varies,
+            this can occasionally take 5-10s.
+          </p>
+        )}
       </form>
 
       {error && (

@@ -147,7 +147,11 @@ export default function Home() {
           disabled={!input.trim() || loading}
           className="w-fit rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
         >
-          {loading ? "Rewriting…" : "Rewrite"}
+          {loading
+            ? selfCritique
+              ? "Rewriting + reviewing… (~2x slower)"
+              : "Rewriting…"
+            : "Rewrite"}
         </button>
       </form>
 

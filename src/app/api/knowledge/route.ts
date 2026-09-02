@@ -42,16 +42,33 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
 
   const title = typeof body?.title === "string" ? body.title.trim() : "";
-  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const pastedText = typeof body?.text === "string" ? body.text.trim() : "";
+  const imageData = typeof body?.image === "string" ? body.image : "";
+  const imageMimeType = typeof body?.imageMimeType === "string" ? body.imageMimeType : "";
 
-  if (!title || !text) {
-    return NextResponse.json({ error: "title and text are required" }, { status: 400 });
+  if (!title || (!pastedText && !imageData)) {
+    return NextResponse.json(
+      { error: "title and either text or an image are required" },
+      { status: 400 },
+    );
   }
-  if (text.length > 20000) {
+  if (pastedText.length > 20000) {
     return NextResponse.json(
       { error: "text is too long (max 20000 characters)" },
       { status: 400 },
     );
+  }
+  // ~3MB raw, base64-inflated — stays well under Vercel's 4.5MB request body limit.
+  if (imageData.length > 4_000_000) {
+    return NextResponse.json({ error: "image is too large (max ~3MB)" }, { status: 400 });
+  }
+
+  let text: string;
+  try {
+    text = imageData ? await getLLM().extractTextFromImage(imageData, imageMimeType) : pastedText;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   const chunks = chunkText(text);

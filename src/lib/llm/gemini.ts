@@ -107,6 +107,33 @@ export class GeminiProvider implements LLMProvider {
     return (response.embeddings ?? []).map((e) => e.values ?? []);
   }
 
+  async extractTextFromImage(base64Data: string, mimeType: string): Promise<string> {
+    const response = await this.client.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                "This image is a screenshot (e.g. from LINE, a document, or a",
+                "policy page) containing FAQ or business policy information.",
+                "Transcribe all the readable text from it as plain text, in",
+                "reading order. Do not summarize, translate, or add commentary",
+                "— just the text as it appears.",
+              ].join("\n"),
+            },
+            { inlineData: { mimeType, data: base64Data } },
+          ],
+        },
+      ],
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("Gemini could not read any text from the image");
+    return text.trim();
+  }
+
   private async critique(input: string, tone: Tone, draft: { output: string }) {
     return this.prompt(
       [

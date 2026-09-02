@@ -5,14 +5,17 @@ import { messages, rewrites, knowledgeChunks } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { TONES, CONTEXTS, type Tone } from "@/lib/constants";
 import { auth } from "@/lib/auth";
-import { getOrCreateDefaultOrg } from "@/lib/org";
+import { getOrCreateOrgForUser } from "@/lib/org";
 
 const KNOWLEDGE_MATCH_COUNT = 3;
 
-// customer_reply drafts get grounded in the knowledge base when one exists,
-// rather than being treated as text to rewrite.
-async function retrieveKnowledgeContext(input: string): Promise<string[] | null> {
-  const org = await getOrCreateDefaultOrg();
+// customer_reply drafts get grounded in the signed-in user's own knowledge
+// base when one exists, rather than being treated as text to rewrite.
+async function retrieveKnowledgeContext(
+  input: string,
+  userId: string,
+): Promise<string[] | null> {
+  const org = await getOrCreateOrgForUser(userId);
 
   const hasKnowledge = await db
     .select({ id: knowledgeChunks.id })
@@ -76,7 +79,9 @@ export async function POST(request: Request) {
   let generated;
   try {
     const knowledgeContext =
-      contextType === "customer_reply" ? await retrieveKnowledgeContext(input) : null;
+      contextType === "customer_reply"
+        ? await retrieveKnowledgeContext(input, session.user.id)
+        : null;
 
     generated = await Promise.all(
       tonesToGenerate.map(async (t) => ({

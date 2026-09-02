@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { knowledgeDocuments, knowledgeChunks } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { chunkText } from "@/lib/chunk";
-import { getOrCreateDefaultOrg } from "@/lib/org";
+import { getOrCreateOrgForUser } from "@/lib/org";
 import { auth } from "@/lib/auth";
 
 export async function GET() {
@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const org = await getOrCreateDefaultOrg();
+  const org = await getOrCreateOrgForUser(session.user.id);
 
   const documents = await db
     .select({
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no content to index" }, { status: 400 });
   }
 
-  const org = await getOrCreateDefaultOrg();
+  const org = await getOrCreateOrgForUser(session.user.id);
 
   let embeddings: number[][];
   try {

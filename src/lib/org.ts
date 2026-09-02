@@ -1,20 +1,27 @@
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { organizations } from "@/db/schema";
+import { organizations, users } from "@/db/schema";
 
-const DEFAULT_ORG_NAME = "My Business";
+// Each signed-in user gets their own org for their knowledge base, created
+// lazily on first use. Kept as a separate org concept (rather than scoping
+// knowledge_* directly to userId) so multiple users can share one org later,
+// once real multi-user SME accounts exist — but for now it's always 1:1.
+export async function getOrCreateOrgForUser(userId: string) {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user) throw new Error("User not found");
 
-// Single default org for the knowledge-base demo — swap for real org
-// creation/selection once multi-tenant auth exists. No race-guard here
-// (unlike getOrCreateDefaultUser): this is single-demo-user scale, so a
-// concurrent double-create is a non-issue worth accepting rather than
-// adding a unique constraint + onConflict just for this.
-export async function getOrCreateDefaultOrg() {
-  const existing = await db.query.organizations.findFirst();
-  if (existing) return existing;
+  if (user.orgId) {
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.id, user.orgId),
+    });
+    if (org) return org;
+  }
 
-  const [created] = await db
+  const [org] = await db
     .insert(organizations)
-    .values({ name: DEFAULT_ORG_NAME })
+    .values({ name: `${user.name ?? user.email}'s Knowledge Base` })
     .returning();
-  return created;
+  await db.update(users).set({ orgId: org.id }).where(eq(users.id, userId));
+
+  return org;
 }

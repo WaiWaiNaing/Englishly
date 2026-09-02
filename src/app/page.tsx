@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { TONES, CONTEXTS, type Tone, type ContextType } from "@/lib/constants";
 
 interface RewriteResult {
@@ -62,12 +63,20 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-12">
-      <header>
-        <h1 className="text-2xl font-semibold">Englishly</h1>
-        <p className="text-sm text-neutral-500">
-          Paste a message you want to send. Get a natural, professional rewrite —
-          and an explanation of what changed, so you actually learn from it.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Englishly</h1>
+          <p className="text-sm text-neutral-500">
+            Paste a message you want to send. Get a natural, professional rewrite —
+            and an explanation of what changed, so you actually learn from it.
+          </p>
+        </div>
+        <Link
+          href="/history"
+          className="shrink-0 text-sm text-neutral-500 underline hover:text-neutral-800 dark:hover:text-neutral-200"
+        >
+          History
+        </Link>
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

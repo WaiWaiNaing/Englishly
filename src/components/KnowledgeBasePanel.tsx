@@ -8,17 +8,42 @@ interface KnowledgeDocument {
   createdAt: string;
 }
 
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // ~3MB raw, stays under Vercel's 4.5MB body limit after base64
+const MAX_FILES = 6;
+const MAX_DIMENSION = 1600; // px, long edge — plenty for OCR, far smaller than a raw phone screenshot
+const JPEG_QUALITY = 0.82;
 
-function readFileAsBase64(file: File): Promise<string> {
+// Resize + re-encode as JPEG in-browser so a multi-MB phone screenshot
+// becomes a few hundred KB before it ever hits the network — this is what
+// actually fixes "image too large", not just raising the size cap.
+function compressImage(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1] ?? ""); // strip the "data:<mime>;base64," prefix
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        const scale = MAX_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas not supported"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+      resolve({ base64: dataUrl.split(",")[1] ?? "", mimeType: "image/jpeg" });
     };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not load image"));
+    };
+    img.src = url;
   });
 }
 
@@ -27,8 +52,9 @@ export function KnowledgeBasePanel() {
   const [chunkCount, setChunkCount] = useState(0);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,44 +81,68 @@ export function KnowledgeBasePanel() {
   }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
+    const files = Array.from(e.target.files ?? []);
     setError(null);
-    if (file && file.size > MAX_IMAGE_BYTES) {
-      setError("Image is too large (max ~3MB).");
-      setImageFile(null);
+    if (files.length > MAX_FILES) {
+      setError(`Too many files — attach up to ${MAX_FILES} at a time.`);
+      setImageFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    setImageFile(file);
-    if (file) setText(""); // one source at a time — image takes priority
+    setImageFiles(files);
+    if (files.length > 0) setText(""); // one source at a time — images take priority
   }
 
   async function handleSave() {
-    if (!title.trim() || (!text.trim() && !imageFile) || saving) return;
+    if (!title.trim() || (!text.trim() && imageFiles.length === 0) || saving) return;
 
     setSaving(true);
     setError(null);
     try {
-      const body = imageFile
-        ? { title, image: await readFileAsBase64(imageFile), imageMimeType: imageFile.type }
-        : { title, text };
+      let finalText = text;
+
+      if (imageFiles.length > 0) {
+        const extracted: string[] = [];
+        for (let i = 0; i < imageFiles.length; i++) {
+          setProgress(
+            imageFiles.length > 1
+              ? `Reading image ${i + 1} of ${imageFiles.length}…`
+              : "Reading image…",
+          );
+          const { base64, mimeType } = await compressImage(imageFiles[i]);
+          const res = await fetch("/api/knowledge/extract-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: base64, imageMimeType: mimeType }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error ?? "Could not read that image");
+          extracted.push(data.text);
+        }
+        finalText = extracted.join("\n\n");
+        setProgress("Saving…");
+      } else {
+        setProgress("Saving…");
+      }
 
       const res = await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ title, text: finalText }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+
       setTitle("");
       setText("");
-      setImageFile(null);
+      setImageFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSaving(false);
+      setProgress(null);
     }
   }
 
@@ -107,11 +157,11 @@ export function KnowledgeBasePanel() {
 
       <div className="mt-3 flex flex-col gap-3">
         <p className="text-xs text-neutral-500">
-          Paste an FAQ/policy doc, or upload a screenshot (e.g. from LINE) —
-          text gets read out of the image automatically. When Context is set
-          to &quot;Customer reply&quot;, the AI looks up relevant chunks here
-          and grounds its answer in them instead of just rewriting your
-          input.
+          Paste an FAQ/policy doc, or upload one or more screenshots (e.g.
+          from LINE) — text gets read out of each image automatically and
+          combined into one document. When Context is set to &quot;Customer
+          reply&quot;, the AI looks up relevant chunks here and grounds its
+          answer in them instead of just rewriting your input.
         </p>
 
         {documents.length > 0 && (
@@ -134,34 +184,43 @@ export function KnowledgeBasePanel() {
           onChange={(e) => {
             setText(e.target.value);
             if (e.target.value) {
-              setImageFile(null);
+              setImageFiles([]);
               if (fileInputRef.current) fileInputRef.current.value = "";
             }
           }}
           placeholder="Paste your FAQ or policy text here..."
           rows={5}
-          maxLength={20000}
-          disabled={!!imageFile}
+          maxLength={50000}
+          disabled={imageFiles.length > 0}
           className="w-full resize-y rounded-md border border-neutral-300 bg-transparent p-2 text-sm outline-none disabled:opacity-40 focus:border-neutral-500 dark:border-neutral-700"
         />
 
-        <div className="flex items-center gap-2 text-xs text-neutral-500">
-          <span>or</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="text-xs file:mr-2 file:rounded file:border file:border-neutral-300 file:bg-transparent file:px-2 file:py-1 file:text-xs dark:file:border-neutral-700"
-          />
+        <div className="flex flex-col gap-1 text-xs text-neutral-500">
+          <div className="flex items-center gap-2">
+            <span>or</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+              className="text-xs file:mr-2 file:rounded file:border file:border-neutral-300 file:bg-transparent file:px-2 file:py-1 file:text-xs dark:file:border-neutral-700"
+            />
+          </div>
+          {imageFiles.length > 0 && (
+            <span>
+              {imageFiles.length} image{imageFiles.length === 1 ? "" : "s"} selected
+              (resized before upload)
+            </span>
+          )}
         </div>
 
         <button
           onClick={handleSave}
-          disabled={!title.trim() || (!text.trim() && !imageFile) || saving}
+          disabled={!title.trim() || (!text.trim() && imageFiles.length === 0) || saving}
           className="w-fit rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium disabled:opacity-40 dark:border-neutral-700"
         >
-          {saving ? (imageFile ? "Reading image…" : "Saving…") : "Save to knowledge base"}
+          {saving ? (progress ?? "Saving…") : "Save to knowledge base"}
         </button>
 
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}

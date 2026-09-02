@@ -82,7 +82,7 @@ export const knowledgeChunks = pgTable(
       .references(() => organizations.id),
     chunkIndex: integer("chunk_index").notNull(),
     content: text("content").notNull(),
-    embedding: vector("embedding", { dimensions: 768 }), // matches Gemini text-embedding-004
+    embedding: vector("embedding", { dimensions: 768 }), // matches Gemini gemini-embedding-001 output
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

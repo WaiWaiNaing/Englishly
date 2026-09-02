@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TONES, CONTEXTS, type Tone, type ContextType } from "@/lib/constants";
+import { KnowledgeBasePanel } from "@/components/KnowledgeBasePanel";
 
 interface RewriteResult {
   output: string;
@@ -227,6 +228,8 @@ export default function Home() {
           ))}
         </section>
       )}
+
+      <KnowledgeBasePanel />
     </main>
   );
 }

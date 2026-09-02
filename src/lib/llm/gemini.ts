@@ -2,6 +2,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { LLMProvider, RewriteOptions, RewriteResult, Tone } from "./types";
 
 const MODEL = "gemini-3.5-flash-lite";
+const EMBEDDING_MODEL = "gemini-embedding-001";
+const EMBEDDING_DIMENSIONS = 768; // must match src/db/schema.ts knowledgeChunks.embedding
 
 const TONE_GUIDANCE: Record<Tone, string> = {
   professional:
@@ -59,6 +61,50 @@ export class GeminiProvider implements LLMProvider {
         `Message:\n"""${input}"""`,
       ].join("\n"),
     );
+  }
+
+  async answerWithContext(input: string, tone: Tone, context: string[]): Promise<RewriteResult> {
+    const start = Date.now();
+
+    const result = await this.prompt(
+      [
+        "You are drafting a customer service reply for a small business.",
+        `Target tone: ${TONE_GUIDANCE[tone]}.`,
+        idiomGuidance(tone),
+        "",
+        `A customer sent this message:\n"""${input}"""`,
+        "",
+        "Use the following context from the business's FAQ/policies to answer",
+        "accurately.",
+        "",
+        "Context:",
+        context.map((c, i) => `[${i + 1}] ${c}`).join("\n\n"),
+        "",
+        "IMPORTANT: only state facts, policies, numbers, or yes/no answers that",
+        "are directly supported by the context above. If the context does not",
+        "cover part of the customer's question, the REPLY ITSELF (not just the",
+        "explanation) must say that you'll check and follow up on that part —",
+        "never state or imply an answer, positive or negative, that the context",
+        "doesn't support. It's fine to answer the parts the context does cover",
+        "and flag only the uncovered part this way.",
+        "",
+        "Draft the reply. Then briefly explain which parts of the context you",
+        "used and why, and which parts (if any) you flagged as needing",
+        "follow-up, so the business owner can verify accuracy. Keep the",
+        "explanation to 2-4 short bullet points.",
+      ].join("\n"),
+    );
+
+    return { ...result, modelUsed: MODEL, latencyMs: Date.now() - start };
+  }
+
+  async embed(texts: string[]): Promise<number[][]> {
+    const response = await this.client.models.embedContent({
+      model: EMBEDDING_MODEL,
+      contents: texts,
+      config: { outputDimensionality: EMBEDDING_DIMENSIONS },
+    });
+    return (response.embeddings ?? []).map((e) => e.values ?? []);
   }
 
   private async critique(input: string, tone: Tone, draft: { output: string }) {

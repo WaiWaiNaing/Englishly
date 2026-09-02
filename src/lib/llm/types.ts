@@ -17,4 +17,8 @@ export interface RewriteOptions {
 
 export interface LLMProvider {
   rewrite(input: string, tone: Tone, options?: RewriteOptions): Promise<RewriteResult>;
+  // Draft a reply to an inbound message (e.g. a customer inquiry) grounded
+  // in retrieved knowledge-base context, rather than rewriting the input.
+  answerWithContext(input: string, tone: Tone, context: string[]): Promise<RewriteResult>;
+  embed(texts: string[]): Promise<number[][]>;
 }

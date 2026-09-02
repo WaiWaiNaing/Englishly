@@ -5,8 +5,14 @@ import { knowledgeDocuments, knowledgeChunks } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { chunkText } from "@/lib/chunk";
 import { getOrCreateDefaultOrg } from "@/lib/org";
+import { auth } from "@/lib/auth";
 
 export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const org = await getOrCreateDefaultOrg();
 
   const documents = await db
@@ -28,6 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
 
   const title = typeof body?.title === "string" ? body.title.trim() : "";

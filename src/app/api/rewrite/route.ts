@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { messages, rewrites, knowledgeChunks } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { TONES, CONTEXTS, type Tone } from "@/lib/constants";
-import { getOrCreateDefaultUser } from "@/lib/user";
+import { auth } from "@/lib/auth";
 import { getOrCreateDefaultOrg } from "@/lib/org";
 
 const KNOWLEDGE_MATCH_COUNT = 3;
@@ -46,6 +46,11 @@ function quotaAwareError(error: unknown) {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
 
   const input = typeof body?.input === "string" ? body.input.trim() : "";
@@ -88,10 +93,9 @@ export async function POST(request: Request) {
 
   // Only persist the message once we know at least the generation succeeded,
   // so a failed Gemini call doesn't leave an orphaned message with no rewrite.
-  const user = await getOrCreateDefaultUser();
   const [message] = await db
     .insert(messages)
-    .values({ userId: user.id, contextType, rawInput: input })
+    .values({ userId: session.user.id, contextType, rawInput: input })
     .returning();
 
   await db.insert(rewrites).values(

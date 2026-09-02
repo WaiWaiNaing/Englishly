@@ -20,6 +20,8 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id").references(() => organizations.id),
   email: text("email").notNull().unique(),
+  name: text("name"),
+  image: text("image"),
   defaultTone: text("default_tone").notNull().default("professional"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

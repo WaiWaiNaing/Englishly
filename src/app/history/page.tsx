@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { messages, rewrites } from "@/db/schema";
 import { TONES, CONTEXTS } from "@/lib/constants";
-import { getOrCreateDefaultUser } from "@/lib/user";
+import { auth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,13 @@ function labelFor<T extends { value: string; label: string }>(
 }
 
 export default async function HistoryPage() {
-  const user = await getOrCreateDefaultUser();
+  const session = await auth();
+  if (!session?.user?.id) redirect("/signin");
 
   const recentMessages = await db
     .select()
     .from(messages)
-    .where(eq(messages.userId, user.id))
+    .where(eq(messages.userId, session.user.id))
     .orderBy(desc(messages.createdAt))
     .limit(30);
 

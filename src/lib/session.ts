@@ -28,7 +28,15 @@ export async function issueMobileToken(userId: string): Promise<string> {
 export async function getSessionUserId(request: Request): Promise<string | null> {
   const secret = requireSecret();
 
-  const webToken = await getToken({ req: request, secret });
+  // getToken() defaults secureCookie to false, i.e. the plain
+  // "authjs.session-token" cookie name. In production over HTTPS, NextAuth's
+  // own auth()/middleware actually set the "__Secure-"-prefixed cookie
+  // instead, which getToken() then fails to find, silently returning null
+  // even for a genuinely signed-in browser. Trying both avoids depending on
+  // fragile environment/protocol detection.
+  const webToken =
+    (await getToken({ req: request, secret, secureCookie: true })) ??
+    (await getToken({ req: request, secret, secureCookie: false }));
   if (typeof webToken?.userId === "string") return webToken.userId;
 
   const authHeader = request.headers.get("authorization");

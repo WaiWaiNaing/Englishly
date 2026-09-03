@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getLLM } from "@/lib/llm";
-import { auth } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/session";
 
 // Separate from POST /api/knowledge so each image in a multi-file upload is
 // its own small request — keeps every request well under Vercel's 4.5MB
 // body limit regardless of how many screenshots the user attaches, instead
 // of trying to cram them all into one payload.
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSessionUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

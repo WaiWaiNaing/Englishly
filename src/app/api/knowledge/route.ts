@@ -5,15 +5,15 @@ import { knowledgeDocuments, knowledgeChunks } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { chunkText } from "@/lib/chunk";
 import { getOrCreateOrgForUser } from "@/lib/org";
-import { auth } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/session";
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(request: Request) {
+  const userId = await getSessionUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const org = await getOrCreateOrgForUser(session.user.id);
+  const org = await getOrCreateOrgForUser(userId);
 
   const documents = await db
     .select({
@@ -34,8 +34,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSessionUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no content to index" }, { status: 400 });
   }
 
-  const org = await getOrCreateOrgForUser(session.user.id);
+  const org = await getOrCreateOrgForUser(userId);
 
   let embeddings: number[][];
   try {

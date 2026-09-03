@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { messages, rewrites, knowledgeChunks } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { TONES, CONTEXTS, type Tone } from "@/lib/constants";
-import { auth } from "@/lib/auth";
+import { getSessionUserId } from "@/lib/session";
 import { getOrCreateOrgForUser } from "@/lib/org";
 
 const KNOWLEDGE_MATCH_COUNT = 3;
@@ -49,8 +49,8 @@ function quotaAwareError(error: unknown) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSessionUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   try {
     const knowledgeContext =
       contextType === "customer_reply"
-        ? await retrieveKnowledgeContext(input, session.user.id)
+        ? await retrieveKnowledgeContext(input, userId)
         : null;
 
     generated = await Promise.all(
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
   // so a failed Gemini call doesn't leave an orphaned message with no rewrite.
   const [message] = await db
     .insert(messages)
-    .values({ userId: session.user.id, contextType, rawInput: input })
+    .values({ userId, contextType, rawInput: input })
     .returning();
 
   await db.insert(rewrites).values(

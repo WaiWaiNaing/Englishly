@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, desc, eq, ilike, inArray } from "drizzle-orm";
-import { db } from "@/db";
-import { messages, rewrites } from "@/db/schema";
 import { TONES, CONTEXTS } from "@/lib/constants";
 import { auth } from "@/lib/auth";
+import { getFilteredHistory, type HistoryFilters } from "@/lib/history";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +13,6 @@ function labelFor<T extends { value: string; label: string }>(
   return options.find((o) => o.value === value)?.label ?? value;
 }
 
-interface HistoryFilters {
-  context?: string;
-  tone?: string;
-  q?: string;
-}
-
 export default async function HistoryPage({
   searchParams,
 }: {
@@ -29,37 +21,13 @@ export default async function HistoryPage({
   const session = await auth();
   if (!session?.user?.id) redirect("/signin");
 
-  const { context: contextFilter, tone: toneFilter, q: searchQuery } = await searchParams;
-  const hasFilters = Boolean(contextFilter || toneFilter || searchQuery);
+  const filters = await searchParams;
+  const hasFilters = Boolean(filters.context || filters.tone || filters.q);
 
-  const conditions = [eq(messages.userId, session.user.id)];
-  if (contextFilter) conditions.push(eq(messages.contextType, contextFilter));
-  if (searchQuery) conditions.push(ilike(messages.rawInput, `%${searchQuery}%`));
-
-  const matchedMessages = await db
-    .select()
-    .from(messages)
-    .where(and(...conditions))
-    .orderBy(desc(messages.createdAt))
-    .limit(30);
-
-  const messageIds = matchedMessages.map((m) => m.id);
-  const relatedRewrites = messageIds.length
-    ? await db.select().from(rewrites).where(inArray(rewrites.messageId, messageIds))
-    : [];
-
-  const rewritesByMessage = new Map<string, typeof relatedRewrites>();
-  for (const r of relatedRewrites) {
-    if (toneFilter && r.tone !== toneFilter) continue;
-    const list = rewritesByMessage.get(r.messageId) ?? [];
-    list.push(r);
-    rewritesByMessage.set(r.messageId, list);
-  }
-
-  // A tone filter can leave a message with zero matching rewrites — drop it.
-  const recentMessages = toneFilter
-    ? matchedMessages.filter((m) => (rewritesByMessage.get(m.id) ?? []).length > 0)
-    : matchedMessages;
+  const { messages: recentMessages, rewritesByMessage } = await getFilteredHistory(
+    session.user.id,
+    filters,
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-12">
@@ -82,7 +50,7 @@ export default async function HistoryPage({
           <span className="text-xs text-neutral-500">Context</span>
           <select
             name="context"
-            defaultValue={contextFilter ?? ""}
+            defaultValue={filters.context ?? ""}
             className="rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
           >
             <option value="">All</option>
@@ -98,7 +66,7 @@ export default async function HistoryPage({
           <span className="text-xs text-neutral-500">Tone</span>
           <select
             name="tone"
-            defaultValue={toneFilter ?? ""}
+            defaultValue={filters.tone ?? ""}
             className="rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
           >
             <option value="">All</option>
@@ -115,7 +83,7 @@ export default async function HistoryPage({
           <input
             type="text"
             name="q"
-            defaultValue={searchQuery ?? ""}
+            defaultValue={filters.q ?? ""}
             placeholder="Search your messages..."
             className="rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 outline-none focus:border-neutral-500 dark:border-neutral-700"
           />

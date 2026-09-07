@@ -1,40 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq, cosineDistance } from "drizzle-orm";
 import { db } from "@/db";
-import { messages, rewrites, knowledgeChunks } from "@/db/schema";
+import { messages, rewrites } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { TONES, CONTEXTS, type Tone } from "@/lib/constants";
 import { getSessionUserId } from "@/lib/session";
-import { getOrCreateOrgForUser } from "@/lib/org";
-
-const KNOWLEDGE_MATCH_COUNT = 3;
-
-// customer_reply drafts get grounded in the signed-in user's own knowledge
-// base when one exists, rather than being treated as text to rewrite.
-async function retrieveKnowledgeContext(
-  input: string,
-  userId: string,
-): Promise<string[] | null> {
-  const org = await getOrCreateOrgForUser(userId);
-
-  const hasKnowledge = await db
-    .select({ id: knowledgeChunks.id })
-    .from(knowledgeChunks)
-    .where(eq(knowledgeChunks.orgId, org.id))
-    .limit(1);
-  if (hasKnowledge.length === 0) return null;
-
-  const [queryEmbedding] = await getLLM().embed([input]);
-
-  const retrieved = await db
-    .select({ content: knowledgeChunks.content })
-    .from(knowledgeChunks)
-    .where(eq(knowledgeChunks.orgId, org.id))
-    .orderBy(cosineDistance(knowledgeChunks.embedding, queryEmbedding))
-    .limit(KNOWLEDGE_MATCH_COUNT);
-
-  return retrieved.map((r) => r.content);
-}
 
 const VALID_TONES = TONES.map((t) => t.value);
 const VALID_CONTEXTS = CONTEXTS.map((c) => c.value);
@@ -78,17 +47,10 @@ export async function POST(request: Request) {
 
   let generated;
   try {
-    const knowledgeContext =
-      contextType === "customer_reply"
-        ? await retrieveKnowledgeContext(input, userId)
-        : null;
-
     generated = await Promise.all(
       tonesToGenerate.map(async (t) => ({
         tone: t,
-        ...(await (knowledgeContext
-          ? getLLM().answerWithContext(input, t, knowledgeContext)
-          : getLLM().rewrite(input, t, { selfCritique }))),
+        ...(await getLLM().rewrite(input, t, { selfCritique })),
       })),
     );
   } catch (error) {

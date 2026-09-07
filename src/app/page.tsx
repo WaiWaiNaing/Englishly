@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TONES, CONTEXTS, type Tone, type ContextType } from "@/lib/constants";
-import { KnowledgeBasePanel } from "@/components/KnowledgeBasePanel";
 
 interface RewriteResult {
   output: string;
@@ -70,6 +69,14 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
     setCopiedTone(key);
     setTimeout(() => setCopiedTone(null), 1500);
+  }
+
+  function handleClear() {
+    setInput("");
+    setResult(null);
+    setCompareResults(null);
+    setError(null);
+    setCopiedTone(null);
   }
 
   return (
@@ -151,17 +158,28 @@ export default function Home() {
           </label>
         </div>
 
-        <button
-          type="submit"
-          disabled={!input.trim() || loading}
-          className="w-fit rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
-        >
-          {loading
-            ? selfCritique
-              ? "Rewriting + reviewing… (~2x slower)"
-              : "Rewriting…"
-            : "Rewrite"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={!input.trim() || loading}
+            className="w-fit rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+          >
+            {loading
+              ? selfCritique
+                ? "Rewriting + reviewing… (~2x slower)"
+                : "Rewriting…"
+              : "Rewrite"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={!input && !result && !compareResults && !error}
+            className="w-fit rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium disabled:opacity-40 dark:border-neutral-700"
+          >
+            Clear
+          </button>
+        </div>
 
         {slowHint && (
           <p className="text-xs text-neutral-500">
@@ -228,8 +246,6 @@ export default function Home() {
           ))}
         </section>
       )}
-
-      <KnowledgeBasePanel />
     </main>
   );
 }

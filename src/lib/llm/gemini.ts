@@ -1,5 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { LLMProvider, RewriteOptions, RewriteResult, Tone } from "./types";
+import type {
+  LLMProvider,
+  RewriteOptions,
+  RewriteResult,
+  Tone,
+  WritingPattern,
+  WritingSample,
+} from "./types";
 
 const MODEL = "gemini-3.5-flash-lite";
 
@@ -18,6 +25,19 @@ const RESPONSE_SCHEMA = {
     explanation: { type: Type.STRING },
   },
   required: ["output", "explanation"],
+};
+
+const PATTERNS_SCHEMA = {
+  type: Type.ARRAY,
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      title: { type: Type.STRING },
+      detail: { type: Type.STRING },
+      example: { type: Type.STRING },
+    },
+    required: ["title", "detail"],
+  },
 };
 
 const idiomGuidance = (tone: Tone) =>
@@ -59,6 +79,54 @@ export class GeminiProvider implements LLMProvider {
         `Message:\n"""${input}"""`,
       ].join("\n"),
     );
+  }
+
+  async analyzeWritingPatterns(samples: WritingSample[]): Promise<WritingPattern[]> {
+    const response = await this.client.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                "You are analyzing a non-native English speaker's writing history",
+                "to help them improve. Below are messages they wrote, each followed",
+                "by an explanation of what an editor changed and why.",
+                "",
+                "Find patterns that show up MORE THAN ONCE across these samples —",
+                "e.g. article usage, verb tense, preposition choice, word order,",
+                "run-on sentences, a specific idiom misused repeatedly. Ignore",
+                "anything that only happened once; a single occurrence is not a",
+                "pattern. Return at most 6 patterns, ranked by how often they",
+                "recur. If fewer than 2 real patterns exist, return fewer items —",
+                "do not invent weak ones to fill the list.",
+                "",
+                "For each pattern give: a short title (2-5 words), a plain-language",
+                "tip explaining the rule and how to fix it, and one short example",
+                "quote taken from the samples below that illustrates it.",
+                "",
+                "Samples:",
+                samples
+                  .map(
+                    (s, i) =>
+                      `[${i + 1}] Original: "${s.input}"\nWhat changed: ${s.explanation}`,
+                  )
+                  .join("\n\n"),
+              ].join("\n"),
+            },
+          ],
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: PATTERNS_SCHEMA,
+      },
+    });
+
+    const raw = response.text;
+    if (!raw) throw new Error("Gemini returned an empty response");
+    return JSON.parse(raw) as WritingPattern[];
   }
 
   private async critique(input: string, tone: Tone, draft: { output: string }) {

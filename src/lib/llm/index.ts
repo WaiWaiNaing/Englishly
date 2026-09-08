@@ -1,7 +1,7 @@
 import { GeminiProvider } from "./gemini";
 import type { LLMProvider } from "./types";
 
-export type { LLMProvider, RewriteResult, Tone } from "./types";
+export type { LLMProvider, RewriteResult, Tone, WritingPattern, WritingSample } from "./types";
 
 let instance: LLMProvider | undefined;
 

@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -39,6 +40,22 @@ export const rewrites = pgTable("rewrites", {
   explanation: text("explanation").notNull(),
   modelUsed: text("model_used").notNull(),
   latencyMs: integer("latency_ms"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// One row per user, overwritten each time they regenerate — this is a
+// point-in-time analysis, not a history, so there's nothing to keep past
+// the latest run.
+export const insights = pgTable("insights", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id),
+  tips: jsonb("tips").notNull(), // WritingPattern[] — see src/lib/llm/types.ts
+  messageCount: integer("message_count").notNull(), // how many past messages this run was based on
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

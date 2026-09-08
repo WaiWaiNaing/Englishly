@@ -89,12 +89,20 @@ export default function Home() {
             and an explanation of what changed, so you actually learn from it.
           </p>
         </div>
-        <Link
-          href="/history"
-          className="shrink-0 text-sm text-neutral-500 underline hover:text-neutral-800 dark:hover:text-neutral-200"
-        >
-          History
-        </Link>
+        <div className="flex shrink-0 gap-4">
+          <Link
+            href="/insights"
+            className="text-sm text-neutral-500 underline hover:text-neutral-800 dark:hover:text-neutral-200"
+          >
+            Insights
+          </Link>
+          <Link
+            href="/history"
+            className="text-sm text-neutral-500 underline hover:text-neutral-800 dark:hover:text-neutral-200"
+          >
+            History
+          </Link>
+        </div>
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

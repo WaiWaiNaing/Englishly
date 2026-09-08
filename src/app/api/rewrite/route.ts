@@ -4,18 +4,10 @@ import { messages, rewrites } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
 import { TONES, CONTEXTS, type Tone } from "@/lib/constants";
 import { getSessionUserId } from "@/lib/session";
+import { quotaAwareError } from "@/lib/quotaAwareError";
 
 const VALID_TONES = TONES.map((t) => t.value);
 const VALID_CONTEXTS = CONTEXTS.map((c) => c.value);
-
-function quotaAwareError(error: unknown) {
-  const message = error instanceof Error ? error.message : "Unknown error";
-  const isQuota = message.toLowerCase().includes("quota") || message.includes("429");
-  return {
-    error: isQuota ? "Gemini quota reached, try again shortly." : message,
-    status: isQuota ? 429 : 500,
-  };
-}
 
 export async function POST(request: Request) {
   const userId = await getSessionUserId(request);

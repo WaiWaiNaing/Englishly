@@ -4,16 +4,19 @@ import type { ComponentType } from "react";
 
 interface ChipProps {
   icon?: ComponentType<{ className?: string }>;
+  // Alternative to `icon` for cases an SVG doesn't fit better as-is — e.g.
+  // a flag emoji for the language picker.
+  flag?: string;
   label: string;
   selected: boolean;
   onClick: () => void;
   disabled?: boolean;
 }
 
-// Shared icon + label pill used for the Tone/Context pickers on the
-// Rewrite form and the filter row on History, so both stay visually
-// identical instead of drifting (one used to be a native <select>).
-export function Chip({ icon: Icon, label, selected, onClick, disabled }: ChipProps) {
+// Shared icon + label pill used for the Tone/Context/Language pickers on
+// the Rewrite form and the filter row on History, so all three stay
+// visually identical instead of drifting (one used to be a native <select>).
+export function Chip({ icon: Icon, flag, label, selected, onClick, disabled }: ChipProps) {
   return (
     <button
       type="button"
@@ -26,6 +29,7 @@ export function Chip({ icon: Icon, label, selected, onClick, disabled }: ChipPro
       }`}
     >
       {Icon && <Icon className="h-4 w-4" />}
+      {flag && <span aria-hidden="true">{flag}</span>}
       {label}
     </button>
   );

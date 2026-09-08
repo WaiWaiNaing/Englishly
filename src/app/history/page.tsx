@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { TONES, CONTEXTS } from "@/lib/constants";
+import { TONES, CONTEXTS, LANGUAGES } from "@/lib/constants";
 import { TONE_ICONS, CONTEXT_ICONS, TONE_ACCENT } from "@/lib/theme";
 import { ClockIcon, SearchIcon, XIcon } from "@/components/icons";
 import { auth } from "@/lib/auth";
@@ -200,14 +200,22 @@ export default async function HistoryPage({
                 {(rewritesByMessage.get(m.id) ?? []).map((r) => {
                   const ToneIcon = TONE_ICONS[r.tone as keyof typeof TONE_ICONS];
                   const accent = TONE_ACCENT[r.tone as keyof typeof TONE_ACCENT];
+                  const language = LANGUAGES.find((l) => l.value === r.language);
                   return (
                     <div key={r.id} className="flex flex-col gap-1">
-                      <span
-                        className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${accent?.bg ?? ""} ${accent?.text ?? "text-neutral-500"}`}
-                      >
-                        {ToneIcon && <ToneIcon className="h-3 w-3" />}
-                        {labelFor(TONES, r.tone)}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${accent?.bg ?? ""} ${accent?.text ?? "text-neutral-500"}`}
+                        >
+                          {ToneIcon && <ToneIcon className="h-3 w-3" />}
+                          {labelFor(TONES, r.tone)}
+                        </span>
+                        {language && language.value !== "en" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                            {language.flag} {language.label}
+                          </span>
+                        )}
+                      </div>
                       <p className="whitespace-pre-wrap text-sm">{r.outputText}</p>
                     </div>
                   );

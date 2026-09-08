@@ -1,9 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { LANGUAGES } from "@/lib/constants";
 import type {
   LLMProvider,
   RewriteOptions,
   RewriteResult,
+  TranslationResult,
   Tone,
+  Language,
   WritingPattern,
   WritingSample,
 } from "./types";
@@ -127,6 +130,39 @@ export class GeminiProvider implements LLMProvider {
     const raw = response.text;
     if (!raw) throw new Error("Gemini returned an empty response");
     return JSON.parse(raw) as WritingPattern[];
+  }
+
+  async translate(text: string, language: Language, tone: Tone): Promise<TranslationResult> {
+    const start = Date.now();
+    const languageLabel = LANGUAGES.find((l) => l.value === language)?.label ?? language;
+
+    const response = await this.client.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: [
+                `Translate the message below into natural, ${TONE_GUIDANCE[tone]}`,
+                `${languageLabel}. Write it the way a native ${languageLabel} speaker`,
+                "would actually phrase it in this situation — not a literal",
+                "word-for-word translation. Keep the meaning exactly the same, don't",
+                "add or drop information. Return ONLY the translated text, nothing",
+                "else — no notes, no quotation marks around it.",
+                "",
+                `Message:\n"""${text}"""`,
+              ].join("\n"),
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = response.text;
+    if (!raw) throw new Error("Gemini returned an empty response");
+
+    return { output: raw.trim(), modelUsed: MODEL, latencyMs: Date.now() - start };
   }
 
   private async critique(input: string, tone: Tone, draft: { output: string }) {

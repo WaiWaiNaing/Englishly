@@ -1,5 +1,7 @@
 export type Tone = "professional" | "friendly" | "formal";
 
+export type Language = "en" | "th" | "ja" | "ko" | "my";
+
 export type ContextType =
   | "slack"
   | "team"
@@ -17,6 +19,18 @@ export const TONES: { value: Tone; label: string }[] = [
   { value: "professional", label: "Professional" },
   { value: "friendly", label: "Friendly" },
   { value: "formal", label: "Formal" },
+];
+
+// Output language for the final rewrite. English skips translation entirely
+// (the Gemini rewrite step already produces English); any other language
+// runs the Gemini rewrite → Gemini translate → ChatGPT natural-tone-check
+// pipeline in src/app/api/rewrite/route.ts.
+export const LANGUAGES: { value: Language; label: string; flag: string }[] = [
+  { value: "en", label: "English", flag: "🇺🇸" },
+  { value: "th", label: "Thai", flag: "🇹🇭" },
+  { value: "ja", label: "Japanese", flag: "🇯🇵" },
+  { value: "ko", label: "Korean", flag: "🇰🇷" },
+  { value: "my", label: "Burmese", flag: "🇲🇲" },
 ];
 
 export const CONTEXTS: { value: ContextType; label: string }[] = [

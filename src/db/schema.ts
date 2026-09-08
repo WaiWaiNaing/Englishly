@@ -36,6 +36,7 @@ export const rewrites = pgTable("rewrites", {
     .notNull()
     .references(() => messages.id),
   tone: text("tone").notNull(), // see TONES in src/lib/constants.ts
+  language: text("language").notNull().default("en"), // see LANGUAGES in src/lib/constants.ts
   outputText: text("output_text").notNull(),
   explanation: text("explanation").notNull(),
   modelUsed: text("model_used").notNull(),

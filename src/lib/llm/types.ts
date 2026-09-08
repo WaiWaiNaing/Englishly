@@ -1,10 +1,16 @@
-import type { Tone } from "@/lib/constants";
+import type { Tone, Language } from "@/lib/constants";
 
-export type { Tone };
+export type { Tone, Language };
 
 export interface RewriteResult {
   output: string;
   explanation: string;
+  modelUsed: string;
+  latencyMs: number;
+}
+
+export interface TranslationResult {
+  output: string;
   modelUsed: string;
   latencyMs: number;
 }
@@ -32,4 +38,8 @@ export interface LLMProvider {
   // what changed, and surfaces recurring grammar/English patterns — not
   // one-off mistakes — so the user can see what to actually work on.
   analyzeWritingPatterns(samples: WritingSample[]): Promise<WritingPattern[]>;
+  // Translates an already-tone-guided English rewrite into another
+  // language. Kept separate from `rewrite` because the input here is
+  // already-polished English, not the user's raw draft.
+  translate(text: string, language: Language, tone: Tone): Promise<TranslationResult>;
 }

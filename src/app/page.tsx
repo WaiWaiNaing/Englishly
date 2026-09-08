@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TONES, CONTEXTS, type Tone, type ContextType } from "@/lib/constants";
+import { TONES, CONTEXTS, LANGUAGES, type Tone, type ContextType, type Language } from "@/lib/constants";
 import { TONE_ICONS, CONTEXT_ICONS, TONE_ACCENT } from "@/lib/theme";
 import { Chip } from "@/components/Chip";
 import { SparklesIcon, ClockIcon, CopyIcon, CheckIcon, XIcon } from "@/components/icons";
@@ -20,6 +20,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [tone, setTone] = useState<Tone>("professional");
   const [contextType, setContextType] = useState<ContextType>("slack");
+  const [outputLanguage, setOutputLanguage] = useState<Language>("en");
   const [compareAll, setCompareAll] = useState(false);
   const [selfCritique, setSelfCritique] = useState(false);
   const [result, setResult] = useState<RewriteResult | null>(null);
@@ -54,6 +55,7 @@ export default function Home() {
           input,
           contextType,
           selfCritique,
+          outputLanguage,
           ...(compareAll ? { compareAll: true } : { tone }),
         }),
       });
@@ -155,6 +157,27 @@ export default function Home() {
                 />
               ))}
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-neutral-500">Output language</span>
+            <div className="flex flex-wrap gap-2">
+              {LANGUAGES.map((l) => (
+                <Chip
+                  key={l.value}
+                  flag={l.flag}
+                  label={l.label}
+                  selected={outputLanguage === l.value}
+                  onClick={() => setOutputLanguage(l.value)}
+                />
+              ))}
+            </div>
+            {outputLanguage !== "en" && (
+              <p className="text-xs text-neutral-500">
+                Rewritten in English first, then translated and checked for
+                natural tone — this takes a bit longer.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-4 pt-1">

@@ -2,12 +2,50 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { messages, rewrites } from "@/db/schema";
 import { getLLM } from "@/lib/llm";
-import { TONES, CONTEXTS, type Tone } from "@/lib/constants";
+import { getToneChecker } from "@/lib/openai";
+import { TONES, CONTEXTS, LANGUAGES, type Tone, type Language } from "@/lib/constants";
 import { getSessionUserId } from "@/lib/session";
 import { quotaAwareError } from "@/lib/quotaAwareError";
 
 const VALID_TONES = TONES.map((t) => t.value);
 const VALID_CONTEXTS = CONTEXTS.map((c) => c.value);
+const VALID_LANGUAGES = LANGUAGES.map((l) => l.value);
+
+// Generates one tone's rewrite. For English (the default) this is just the
+// Gemini rewrite step. For any other language, the Gemini rewrite is always
+// done first — its "why it changed" explanation is English-learning
+// feedback and only makes sense against an English draft — then that draft
+// is translated, then (if configured) passed through ChatGPT for a natural-
+// tone check. ChatGPT is optional: without OPENAI_API_KEY this silently
+// falls back to Gemini's translation alone rather than failing the request.
+async function generateOne(input: string, tone: Tone, language: Language, selfCritique: boolean) {
+  const draft = await getLLM().rewrite(input, tone, { selfCritique });
+
+  if (language === "en") {
+    return {
+      tone,
+      language,
+      output: draft.output,
+      explanation: draft.explanation,
+      modelUsed: draft.modelUsed,
+      latencyMs: draft.latencyMs,
+    };
+  }
+
+  const translated = await getLLM().translate(draft.output, language, tone);
+  let output = translated.output;
+  let modelUsed = `${draft.modelUsed}+${translated.modelUsed}`;
+  let latencyMs = draft.latencyMs + translated.latencyMs;
+
+  if (process.env.OPENAI_API_KEY) {
+    const polished = await getToneChecker().polishTranslation(translated.output, language, tone);
+    output = polished.output;
+    modelUsed += `+${polished.modelUsed}`;
+    latencyMs += polished.latencyMs;
+  }
+
+  return { tone, language, output, explanation: draft.explanation, modelUsed, latencyMs };
+}
 
 export async function POST(request: Request) {
   const userId = await getSessionUserId(request);
@@ -24,6 +62,9 @@ export async function POST(request: Request) {
   const contextType = VALID_CONTEXTS.includes(body?.contextType)
     ? body.contextType
     : "other";
+  const language: Language = VALID_LANGUAGES.includes(body?.outputLanguage)
+    ? body.outputLanguage
+    : "en";
 
   if (!input) {
     return NextResponse.json({ error: "input is required" }, { status: 400 });
@@ -40,10 +81,7 @@ export async function POST(request: Request) {
   let generated;
   try {
     generated = await Promise.all(
-      tonesToGenerate.map(async (t) => ({
-        tone: t,
-        ...(await getLLM().rewrite(input, t, { selfCritique })),
-      })),
+      tonesToGenerate.map((t) => generateOne(input, t, language, selfCritique)),
     );
   } catch (error) {
     const { error: message, status } = quotaAwareError(error);
@@ -51,7 +89,7 @@ export async function POST(request: Request) {
   }
 
   // Only persist the message once we know at least the generation succeeded,
-  // so a failed Gemini call doesn't leave an orphaned message with no rewrite.
+  // so a failed LLM call doesn't leave an orphaned message with no rewrite.
   const [message] = await db
     .insert(messages)
     .values({ userId, contextType, rawInput: input })
@@ -61,6 +99,7 @@ export async function POST(request: Request) {
     generated.map((r) => ({
       messageId: message.id,
       tone: r.tone,
+      language: r.language,
       outputText: r.output,
       explanation: r.explanation,
       modelUsed: r.modelUsed,

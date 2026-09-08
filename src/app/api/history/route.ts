@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       rewrites: (rewritesByMessage.get(m.id) ?? []).map((r) => ({
         id: r.id,
         tone: r.tone,
+        language: r.language,
         outputText: r.outputText,
         explanation: r.explanation,
       })),

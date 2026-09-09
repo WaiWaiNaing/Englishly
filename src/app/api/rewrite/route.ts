@@ -16,8 +16,10 @@ const VALID_LANGUAGES = LANGUAGES.map((l) => l.value);
 // done first — its "why it changed" explanation is English-learning
 // feedback and only makes sense against an English draft — then that draft
 // is translated, then (if configured) passed through ChatGPT for a natural-
-// tone check. ChatGPT is optional: without OPENAI_API_KEY this silently
-// falls back to Gemini's translation alone rather than failing the request.
+// tone check. ChatGPT is optional and best-effort: if it's unconfigured OR
+// it fails for any reason (billing, quota, an outage), this falls back to
+// Gemini's translation alone rather than failing the whole request — a
+// worse-but-working result beats no result.
 async function generateOne(input: string, tone: Tone, language: Language, selfCritique: boolean) {
   const draft = await getLLM().rewrite(input, tone, { selfCritique });
 
@@ -38,10 +40,14 @@ async function generateOne(input: string, tone: Tone, language: Language, selfCr
   let latencyMs = draft.latencyMs + translated.latencyMs;
 
   if (process.env.OPENAI_API_KEY) {
-    const polished = await getToneChecker().polishTranslation(translated.output, language, tone);
-    output = polished.output;
-    modelUsed += `+${polished.modelUsed}`;
-    latencyMs += polished.latencyMs;
+    try {
+      const polished = await getToneChecker().polishTranslation(translated.output, language, tone);
+      output = polished.output;
+      modelUsed += `+${polished.modelUsed}`;
+      latencyMs += polished.latencyMs;
+    } catch (error) {
+      console.error("ChatGPT tone-check failed, falling back to Gemini translation:", error);
+    }
   }
 
   return { tone, language, output, explanation: draft.explanation, modelUsed, latencyMs };
